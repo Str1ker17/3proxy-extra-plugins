@@ -1,0 +1,4 @@
+auth none
+log
+plugin ClientProcess.dll Initialize
+proxy -p3129
