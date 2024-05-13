@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)\3proxy.props" />
+  <!-- this must be present, otherwise VS reads configuration properties in a wrong way with empty pages -->
+  <PropertyGroup Label="Configuration">
+  </PropertyGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{FDAD48F7-400D-4623-9CE0-382FE6882021}</ProjectGuid>
+    <RootNamespace>ClientProcess</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="UserMacros">
+    <AdditionalLinkDependencies>iphlpapi.lib</AdditionalLinkDependencies>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- #pragma warning(disable: 4100) /* Unreferenced formal parameter */ -->
+      <!-- #pragma warning(disable: 4191) /* Unsafe conversion between function types */ -->
+      <!-- #pragma warning(disable: 4464) /* Relative include path contains '..' */ -->
+      <!-- #pragma warning(disable: 4820) /* The type and order of elements caused the compiler to add padding to the end of a struct */ -->
+      <!-- #pragma warning(disable: 5045) /* Compiler will insert Spectre mitigation */ -->
+      <!-- #pragma warning(disable: 28251) /* Inconsistent annotation for function */ -->
+      <DisableSpecificWarnings>4100;4464;4820;4996;5045</DisableSpecificWarnings>
+      <!--<CompileAs>CompileAsCpp</CompileAs>-->
+      <!--<ExceptionHandling>Sync</ExceptionHandling>-->
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <Link>
+      <!-- <EntryPointSymbol>EntryPoint</EntryPointSymbol> -->
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\src\plugins\ClientProcessPlugin\ClientProcess.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="..\..\src\plugins\ClientProcessPlugin\ClientProcess.cfg.example">
+      <FileType>Document</FileType>
+    </CopyFileToFolders>
+  </ItemGroup>
+</Project>

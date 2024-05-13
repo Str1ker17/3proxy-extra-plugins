@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(SolutionDir)\3proxy.props" />
+  <PropertyGroup Label="Configuration">
+  </PropertyGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{D2B051D3-BA8D-4CD3-BB64-88D4D9E85813}</ProjectGuid>
+    <RootNamespace>3proxy</RootNamespace>
+  </PropertyGroup>
+  <PropertyGroup Label="UserMacros">
+    <AdditionalLinkDependencies>ws2_32.lib</AdditionalLinkDependencies>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <Link>
+      <!-- <EntryPointSymbol>EntryPoint</EntryPointSymbol> -->
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\3proxy.c" />
+    <ClCompile Include="..\src\auth.c" />
+    <ClCompile Include="..\src\authradius.c" />
+    <ClCompile Include="..\src\auto.c" />
+    <ClCompile Include="..\src\base64.c" />
+    <ClCompile Include="..\src\common.c" />
+    <ClCompile Include="..\src\conf.c" />
+    <ClCompile Include="..\src\datatypes.c" />
+    <ClCompile Include="..\src\dnspr.c" />
+    <ClCompile Include="..\src\ftp.c" />
+    <ClCompile Include="..\src\ftppr.c" />
+    <ClCompile Include="..\src\libs\md4.c" />
+    <ClCompile Include="..\src\libs\md5.c" />
+    <ClCompile Include="..\src\libs\regex.c" />
+    <ClCompile Include="..\src\libs\smbdes.c" />
+    <ClCompile Include="..\src\log.c" />
+    <ClCompile Include="..\src\mycrypt.c" />
+    <ClCompile Include="..\src\ntlm.c" />
+    <ClCompile Include="..\src\plugins.c" />
+    <ClCompile Include="..\src\pop3p.c" />
+    <ClCompile Include="..\src\proxy.c" />
+    <ClCompile Include="..\src\proxymain.c">
+      <PreprocessorDefinitions>MODULEMAINFUNC=mainfunc;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ClCompile Include="..\src\smtpp.c" />
+    <ClCompile Include="..\src\sockgetchar.c" />
+    <ClCompile Include="..\src\sockmap.c" />
+    <ClCompile Include="..\src\socks.c" />
+    <ClCompile Include="..\src\stringtable.c" />
+    <ClCompile Include="..\src\tcppm.c" />
+    <ClCompile Include="..\src\udppm.c" />
+    <ClCompile Include="..\src\webadmin.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\proxy.h" />
+    <ClInclude Include="..\src\structures.h" />
+    <ClInclude Include="..\src\version.h" />
+  </ItemGroup>
+</Project>
