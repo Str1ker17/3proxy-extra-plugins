@@ -3,7 +3,7 @@
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
   </PropertyGroup>
-  <Import Project="$(SolutionDir)\3proxy.props" />
+  <Import Project="$(SolutionDir)\Solution.props" />
   <PropertyGroup Label="Configuration">
   </PropertyGroup>
   <PropertyGroup Label="Globals">
@@ -13,19 +13,20 @@
   <PropertyGroup Label="UserMacros">
     <AdditionalLinkDependencies>ws2_32.lib</AdditionalLinkDependencies>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <TreatWarningAsError>false</TreatWarningAsError>
+      <PreprocessorDefinitions>BUILDDATE="__DATE__";%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
-    <Link>
-      <!-- <EntryPointSymbol>EntryPoint</EntryPointSymbol> -->
-    </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\src\3proxy.c" />
@@ -65,5 +66,11 @@
     <ClInclude Include="..\src\proxy.h" />
     <ClInclude Include="..\src\structures.h" />
     <ClInclude Include="..\src\version.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\src\3proxy.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\src\3proxy.ico" />
   </ItemGroup>
 </Project>
