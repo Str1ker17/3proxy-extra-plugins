@@ -109,9 +109,6 @@
     <ClCompile Include="..\src\libs\smbdes.c">
       <Filter>Sources\libs</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\plugins\ClientProcessPlugin\ClientProcess.c">
-      <Filter>Sources\plugins\ClientProcess</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\proxy.h">
@@ -123,5 +120,11 @@
     <ClInclude Include="..\src\version.h">
       <Filter>Headers</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\src\3proxy.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\src\3proxy.ico" />
   </ItemGroup>
 </Project>
