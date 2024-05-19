@@ -53,7 +53,7 @@
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <LinkIncremental>false</LinkIncremental>
     <GenerateManifest>false</GenerateManifest>
-    <RunCodeAnalysis>true</RunCodeAnalysis>
+    <!-- <RunCodeAnalysis>true</RunCodeAnalysis> -->
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -61,7 +61,6 @@
       <WarningLevel>EnableAllWarnings</WarningLevel>
       <ExceptionHandling>false</ExceptionHandling>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <DisableLanguageExtensions />
       <CompileAs>CompileAsC</CompileAs>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
@@ -71,7 +70,6 @@
     </ClCompile>
     <Link>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
-      <EntryPointSymbol />
     </Link>
   </ItemDefinitionGroup>
 
@@ -96,20 +94,21 @@
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
     <ClCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <!-- <IntrinsicFunctions>false</IntrinsicFunctions> /* Only to use with PicoCRT */ -->
       <SDLCheck>false</SDLCheck>
       <CallingConvention>FastCall</CallingConvention>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
       <BufferSecurityCheck>false</BufferSecurityCheck>
-      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <WholeProgramOptimization>true</WholeProgramOptimization> <!-- FIXME; can work not as expected -->
       <AdditionalOptions>/Gs131072 %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
       <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
     </ClCompile>
     <Link>
-      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
-      <AdditionalDependencies>kernel32.lib;user32.lib;$(AdditionalLinkDependencies)</AdditionalDependencies>
+      <!-- <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries> /* Only to use with PicoCRT */ -->
+      <!-- <AdditionalDependencies>kernel32.lib;user32.lib;$(AdditionalLinkDependencies)</AdditionalDependencies> /* Only to use with PicoCRT */ -->
+      <AdditionalDependencies>$(AdditionalLinkDependencies);%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SetChecksum>true</SetChecksum>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
