@@ -1,4 +1,21 @@
-auth none
 log
-plugin ClientProcess.dll Initialize
+plugin ClientProcess.dll Initialize format=short
+#auth iponly
+auth client_process
+
+# Any client must match
+allow * * vk.com
+
+# Only curl.exe can go anywhere through upstream proxy
+allow * *
+clients curl.exe
+parent 1000 socks5 127.0.0.1 1081
+
+# Only curl2.exe can go to the listed addresses directly
+allow * * ya.ru,api.ipify.org,192.168.75.22
+clients curl2.exe
+
+# Everything else is blocked
+deny *
+
 proxy -p3129
