@@ -19,3 +19,7 @@ clients curl2.exe
 deny *
 
 proxy -p3129
+
+# For a clean environment and disable reusing ACL is code
+flush
+end

@@ -3,6 +3,9 @@
    All rights are horse-fucked.
 */
 
+#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_NONSTDC_NO_WARNINGS
+
 #include "../../structures.h"
 #include "ClientProcess.h"
 
@@ -16,8 +19,20 @@ static struct {
     .shortFormat = FALSE,
 };
 
+/* Save the pointer in global area for the easier reuse. */
+static struct pluginlink *p_link;
+
+/* Original functions that CAN be overridden. */
 static LOGFUNC dolog_3proxy = NULL;
 static SOCKET(WINAPI *accept_3proxy)(void *state, SOCKET s, struct sockaddr *addr, int *addrlen);
+
+/* Original functions that can NOT be overridden and missing in pluginlink. */
+static int (*handleredirect)(struct clientparam *param, struct ace *ace);
+
+/* Hax time:
+ * * For SAISNULL() */
+static char *NULLADDR_ = "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+#define NULLADDR NULLADDR_
 
 #pragma region "These functions are supported only on Windows at the moment"
 
@@ -111,7 +126,11 @@ static bool InsertClientProcessRow(SOCKET s_accepted, SOCKADDR *addr) {
          *  myinet_ntop(*SAFAMILY(&param->sincr), SAADDR(&param->sincr), (char *)buf + i, 64);
          *  sprintf((char *)buf+i, "%hu", ntohs(*SAPORT(&param->sincr)));
          */
-        fprintf(stderr, "error %lu while determining client process\n", e);
+        char buf[64];
+        p_link->myinet_ntop(*SAFAMILY(addr), SAADDR(addr), buf, sizeof(buf));
+        dolog(
+            "Error %lu while determining client process of %s:%hu", e, buf, be16toh(*SAPORT(addr))
+        );
         return false;
     } else if (pid == 0) {
         /* Unknown process, probably already exited or remote. */
@@ -193,8 +212,8 @@ static void dolog_override(struct clientparam *param, const unsigned char *buf) 
     dolog_3proxy(param, buf);
 }
 
-/* TODO: catch process early, just on connection creation.
- * but to do it, we need to collect the info inside plugin, in some unordered_map or smth */
+/* DONE: catch process as early as possible, just on connection creation.
+ * To do it, we need to collect the info inside plugin, in some unordered_map or smth */
 static SOCKET(WINAPI *accept_3proxy)(void *state, SOCKET s, struct sockaddr *addr, int *addrlen);
 
 static SOCKET WINAPI accept_override(void *state, SOCKET s, struct sockaddr *addr, int *addrlen) {
@@ -204,10 +223,6 @@ static SOCKET WINAPI accept_override(void *state, SOCKET s, struct sockaddr *add
     }
     return s_accepted;
 }
-
-static struct pluginlink *p_link;
-/* Missing in pluginlink. */
-static int (*handleredirect)(struct clientparam *param, struct ace *ace);
 
 /* FIXME: temporary solution. */
 static struct ClientProcessACEList {
@@ -222,14 +237,11 @@ static int h_clients(int argc, unsigned char **argv) {
         ace = ace->next;
     }
     if (ace == NULL || ace->action != ALLOW) {
-        fprintf(
-            stderr,
-            "Client Process plugin error: last ACL entry was not \"allow\" on line %d\n",
-            *p_link->linenum
-        );
+        dolog("last ACL entry was not \"allow\" on line %d\n", *p_link->linenum);
         return 2;
     }
 
+    /* FIXME: this list becomes invalid after "flush" :( */
     struct ClientProcessACEList **tmp = &aces;
     while (*tmp) {
         tmp = &(*tmp)->next;
@@ -239,7 +251,7 @@ static int h_clients(int argc, unsigned char **argv) {
     (*tmp)->cpace.ace = ace;
     /* TODO: support vararg */
     (*tmp)->cpace.path = strdup((char *)argv[1]); /* FIXME: memory leak on unload */
-    (*tmp)->cpace.isShort = !strchr((char *)argv[1], '\\');
+    (*tmp)->cpace.isShort = (strchr((char *)argv[1], '\\') == NULL);
 
     return 0;
 }
@@ -253,21 +265,19 @@ static bool ACLMatchesWithClient(struct ace *ace, struct clientparam *param) {
             if (UseClientProcessRow(
                     param->clisock, ClientProcessRow_CheckClientListMatch, &tmp->cpace
                 )) {
-                fprintf(stderr, "matched ace on line %d\n", ace->linenum);
+                dolog("matched ACL entry on line %d extended by client list", ace->linenum);
                 return true;
             } else {
+                dolog("matched ACL entry on line %d but not the client list", ace->linenum);
                 return false;
             }
         }
         tmp = tmp->next;
     }
     /* Enable all clients by default. */
+    dolog("matched ACL entry on line %d and the client list is empty", ace->linenum);
     return true;
 }
-
-/* For SAISNULL() */
-static char *_NULLADDR = "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
-#define NULLADDR _NULLADDR
 
 /* Copied from checkACL() */
 static int ClientProcess_AuthorizeFunc(struct clientparam *param) {
@@ -344,21 +354,37 @@ PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **ar
      */
 
     p_link = link;
-    handleredirect =
-        (int (*)(struct clientparam *, struct ace *))p_link->findbyname("handleredirect");
+
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "format=short") == 0) {
+            PluginConfig.shortFormat = true;
+            dolog("Using short format for logs");
+        } else if (strcmp(argv[i], "format=long") == 0) {
+            PluginConfig.shortFormat = false;
+        } else {
+            dolog("The option '%s' is not supported. Exiting", argv[i]);
+            return 1; /* Non-recoverable error. */
+        }
+    }
 
     OverrideHandler((void **)&link->conf->logfunc, (void **)&dolog_3proxy, (void *)dolog_override);
     OverrideHandler((void **)&link->so->_accept, (void **)&accept_3proxy, (void *)accept_override);
 
+    handleredirect =
+        (int (*)(struct clientparam *, struct ace *))p_link->findbyname("handleredirect");
+
     static struct commands cmd_clients = {
         .command = "clients",
         .handler = h_clients,
-        .minargs = 2,
-        .maxargs = 2,
+        .minargs = 2, /* Minimum number, counting command itself (so >= 1) that command requires. */
+        .maxargs = 2, /* Maximum number that command supports, 0 means infinity. */
     };
     cmd_clients.next = link->commandhandlers->next;
     link->commandhandlers->next = &cmd_clients;
 
+    /* TODO: instead of adding a completely new auth method,
+     * intercept all .authorize functions in existing auth methods
+     * (this may be non-working though) */
     static struct auth auth_client_process = {
         .desc = "client_process",
         .authenticate = ClientProcess_AuthenticateFunc,
@@ -370,14 +396,18 @@ PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **ar
     return 0;
 }
 
+static void PluginConstructor(void) { pthread_mutex_init(&cpsit.mutex, NULL); }
+
+static void PluginDestructor(void) { pthread_mutex_destroy(&cpsit.mutex); }
+
 BOOL WINAPI DllMain(HANDLE hModule, DWORD reason, LPVOID reserved) {
     switch (reason) {
         case DLL_PROCESS_ATTACH: {
-            pthread_mutex_init(&cpsit.mutex, NULL);
+            PluginConstructor();
             return TRUE;
         }
         case DLL_PROCESS_DETACH: {
-            pthread_mutex_destroy(&cpsit.mutex);
+            PluginDestructor();
             return TRUE;
         }
         case DLL_THREAD_ATTACH:

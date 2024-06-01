@@ -18,9 +18,18 @@ typedef DWORD PID;
 
 typedef unsigned short ushort;
 
+#if 0
+static_assert(
+    (1 == *(const uint8_t *)&(const ushort){1}),
+    "Only little-endian systems are supported. Please add support!"
+);
+#endif
+
 #define countof(a) (sizeof(a) / sizeof((a)[0]))
 #define htobe16(x) ((((x) & 0xffU) << 8) | ((x) >> 8))
 #define be16toh htobe16
+
+#define dolog(fmt, ...) fprintf(stderr, "ClientProcess: " fmt "\n", ##__VA_ARGS__)
 
 typedef struct {
     SOCKET s;
