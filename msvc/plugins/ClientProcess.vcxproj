@@ -24,10 +24,10 @@
       <!-- #pragma warning(disable: 4820) /* The type and order of elements caused the compiler to add padding to the end of a struct */ -->
       <!-- #pragma warning(disable: 5045) /* Compiler will insert Spectre mitigation */ -->
       <!-- #pragma warning(disable: 28251) /* Inconsistent annotation for function */ -->
-      <DisableSpecificWarnings>4100;4131;4464;4710;4820;4996;5045</DisableSpecificWarnings>
+      <DisableSpecificWarnings>4100;4131;4464;4710;4820;4996;5045;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <!--<CompileAs>CompileAsCpp</CompileAs>-->
       <!--<ExceptionHandling>Sync</ExceptionHandling>-->
-      <PreprocessorDefinitions>PROTOTYPES=1;%(PreprocessorDefinitions)</PreprocessorDefinitions> 
+      <PreprocessorDefinitions>PROTOTYPES=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
