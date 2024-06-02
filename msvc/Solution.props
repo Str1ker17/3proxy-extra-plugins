@@ -67,6 +67,11 @@
       <TreatAngleIncludeAsExternal>true</TreatAngleIncludeAsExternal>
       <ProgramDataBaseFileName>$(IntDir)$(MSBuildProjectName)_vc$(PlatformToolsetVersion).pdb</ProgramDataBaseFileName>
       <OmitFramePointers>false</OmitFramePointers>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <!-- #pragma warning(disable: 4711) /* Function selected for automatic inline expansion */ -->
+      <DisableSpecificWarnings>4711</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
@@ -101,9 +106,10 @@
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <WholeProgramOptimization>true</WholeProgramOptimization> <!-- FIXME; can work not as expected -->
       <AdditionalOptions>/Gs131072 %(AdditionalOptions)</AdditionalOptions>
-      <Optimization>MinSpace</Optimization>
-      <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
-      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <Optimization>MaxSpeed</Optimization>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
     </ClCompile>
     <Link>
       <!-- <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries> /* Only to use with PicoCRT */ -->
