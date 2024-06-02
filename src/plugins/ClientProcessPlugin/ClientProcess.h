@@ -39,7 +39,7 @@ typedef struct {
 } ClientProcessSocketInfo;
 
 typedef struct {
-    struct ace *ace;
+    unsigned char hash[16];
     char *path;
     bool isShort: 1;
 } ClientProcessACE;
