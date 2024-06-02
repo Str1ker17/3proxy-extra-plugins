@@ -8,6 +8,7 @@
 
 #include "../../structures.h"
 #include "ClientProcess.h"
+#include "../../libs/md4.h"
 
 #ifdef __cplusplus
 #error "Please, compile as C code only"
@@ -22,9 +23,12 @@ static struct {
 /* Save the pointer in global area for the easier reuse. */
 static struct pluginlink *p_link;
 
-/* Original functions that CAN be overridden. */
+/* Original functions that CAN be overridden and present in pluginlink. */
 static LOGFUNC dolog_3proxy = NULL;
 static SOCKET(WINAPI *accept_3proxy)(void *state, SOCKET s, struct sockaddr *addr, int *addrlen);
+
+/* Original functions that CAN be overridden but NOT present in pluginlink. */
+static int (*h_parent_3proxy)(int argc, unsigned char **argv);
 
 /* Original functions that can NOT be overridden and missing in pluginlink. */
 static int (*handleredirect)(struct clientparam *param, struct ace *ace);
@@ -36,7 +40,7 @@ static char *NULLADDR_ = "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
 #pragma region "These functions are supported only on Windows at the moment"
 
-static DWORD GetLocalProcessBySourceSocket(_In_ SOCKADDR *sa, _Out_ PID *pid) {
+static DWORD GetLocalProcessBySourceSocket(_In_ SOCKADDR *sa, _Out_ _Maybevalid_ PID *pid) {
     VOID *data;
     DWORD tableSize = 0;
     DWORD rv;
@@ -98,8 +102,10 @@ static char *GetProcessNameByPid(PID pid) {
     HANDLE hProcess;
     if ((hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid)) != INVALID_HANDLE_VALUE) {
         processName = LocalAlloc(0, MAX_PATH);
-        GetModuleFileNameEx(hProcess, NULL, processName, MAX_PATH);
-        CloseHandle(hProcess);
+        if (processName != NULL) {
+            GetModuleFileNameEx(hProcess, NULL, processName, MAX_PATH);
+            CloseHandle(hProcess);
+        }
     }
     return processName;
 }
@@ -191,6 +197,9 @@ static bool ClientProcessRow_LogAndDispose(ClientProcessSocketInfo *cpsi, const 
     if (i < cpsit.next) {
         cpsit.next = i;
     }
+#if defined(PLUGIN_DEBUG)
+    dolog("cpsit.next=%hu cpsit.last=%hu", cpsit.next, cpsit.last);
+#endif
     return true;
 }
 
@@ -230,6 +239,117 @@ static struct ClientProcessACEList {
     ClientProcessACE cpace;
 } *aces = NULL;
 
+static void ACEHash(struct ace *ace, unsigned char *hash) {
+    MD4_CTX ctx;
+    MD4Init(&ctx);
+
+    /*
+        int action;
+        int operation;
+        int wdays;
+        int weight;
+        int nolog;
+        struct period *periods;
+        struct userlist *users;
+        struct iplist *src, *dst;
+        struct hostname *dstnames;
+        struct portlist *ports;
+        struct chain *chains;
+    */
+
+#define MD4UpdateLocal(ptr, len) MD4Update(&ctx, (ptr), (len))
+#define MD4UpdateField(obj, field)                                                                 \
+    MD4UpdateLocal((unsigned char *)&(obj)->field, sizeof((obj)->field))
+#define MD4UpdateFieldCStr(obj, field)                                                             \
+    do {                                                                                           \
+        if ((obj)->field) {                                                                        \
+            MD4UpdateLocal(                                                                        \
+                (unsigned char *)(obj)->field, (unsigned int)strlen((const char *)(obj)->field)    \
+            );                                                                                     \
+        }                                                                                          \
+    } while (0)
+
+    MD4UpdateField(ace, action);
+    MD4UpdateField(ace, operation);
+    MD4UpdateField(ace, wdays);
+    MD4UpdateField(ace, weight);
+    MD4UpdateField(ace, nolog);
+
+    for (struct iplist *ipentry = ace->src; ipentry; ipentry = ipentry->next) {
+        MD4UpdateField(ipentry, family);
+        MD4UpdateField(ipentry, ip_from);
+        MD4UpdateField(ipentry, ip_to);
+    }
+
+    for (struct iplist *ipentry = ace->dst; ipentry; ipentry = ipentry->next) {
+        MD4UpdateField(ipentry, family);
+        MD4UpdateField(ipentry, ip_from);
+        MD4UpdateField(ipentry, ip_to);
+    }
+
+    for (struct hostname *nameentry = ace->dstnames; nameentry; nameentry = nameentry->next) {
+        MD4UpdateField(nameentry, matchtype);
+        MD4UpdateFieldCStr(nameentry, name);
+    }
+
+    for (struct portlist *portentry = ace->ports; portentry; portentry = portentry->next) {
+        MD4UpdateField(portentry, startport);
+        MD4UpdateField(portentry, endport);
+    }
+
+    for (struct period *periodentry = ace->periods; periodentry; periodentry = periodentry->next) {
+        MD4UpdateField(periodentry, fromtime);
+        MD4UpdateField(periodentry, totime);
+    }
+
+    for (struct userlist *userentry = ace->users; userentry; userentry = userentry->next) {
+        MD4UpdateFieldCStr(userentry, user);
+    }
+
+    for (struct chain *chainentry = ace->chains; chainentry; chainentry = chainentry->next) {
+        /*
+            int type;
+        #ifndef NOIPV6
+            struct sockaddr_in6 addr;
+        #else
+            struct sockaddr_in addr;
+        #endif
+            unsigned char * exthost;
+            unsigned char * extuser;
+            unsigned char * extpass;
+            unsigned short weight;
+            unsigned short cidr;
+        */
+        MD4UpdateField(chainentry, addr);
+        MD4UpdateFieldCStr(chainentry, exthost);
+        MD4UpdateFieldCStr(chainentry, extuser);
+        MD4UpdateFieldCStr(chainentry, extpass);
+        MD4UpdateField(chainentry, weight);
+        MD4UpdateField(chainentry, cidr);
+    }
+
+    MD4Final(hash, &ctx);
+}
+
+static int h_parent_override(int argc, unsigned char **argv) {
+    int rv = h_parent_3proxy(argc, argv);
+    if (rv <= 0) {
+        struct ace *ace = p_link->conf->acl;
+        while (ace && ace->next) {
+            ace = ace->next;
+        }
+        struct ClientProcessACEList *tmp = aces;
+        while (tmp && tmp->next) {
+            tmp = tmp->next;
+        }
+        if (tmp) {
+            ACEHash(ace, tmp->cpace.hash);
+            dolog("recalculated hash for ACE on line %d", *p_link->linenum);
+        }
+    }
+    return rv;
+}
+
 static int h_clients(int argc, unsigned char **argv) {
     /* Find a linked ACE. */
     struct ace *ace = p_link->conf->acl;
@@ -241,14 +361,17 @@ static int h_clients(int argc, unsigned char **argv) {
         return 2;
     }
 
-    /* FIXME: this list becomes invalid after "flush" :( */
+    /* TODO: move to something more reliable */
     struct ClientProcessACEList **tmp = &aces;
     while (*tmp) {
         tmp = &(*tmp)->next;
     }
     *tmp = malloc(sizeof(**tmp));
+    if (*tmp == NULL) {
+        return 1;
+    }
     (*tmp)->next = NULL;
-    (*tmp)->cpace.ace = ace;
+    ACEHash(ace, (*tmp)->cpace.hash);
     /* TODO: support vararg */
     (*tmp)->cpace.path = strdup((char *)argv[1]); /* FIXME: memory leak on unload */
     (*tmp)->cpace.isShort = (strchr((char *)argv[1], '\\') == NULL);
@@ -258,24 +381,31 @@ static int h_clients(int argc, unsigned char **argv) {
 
 static bool ACLMatchesWithClient(struct ace *ace, struct clientparam *param) {
     const struct ClientProcessACEList *tmp = aces;
+    unsigned char hash[16];
+    ACEHash(ace, hash);
     while (tmp) {
         /* FIXME!!! */
-        //if (p_link->ACLMatches(ace, param) && p_link->ACLMatches(tmp->cpace.ace, param)) {
-        if (ace->linenum == tmp->cpace.ace->linenum) {
+        if (memcmp(hash, tmp->cpace.hash, sizeof(tmp->cpace.hash)) == 0) {
             if (UseClientProcessRow(
                     param->clisock, ClientProcessRow_CheckClientListMatch, &tmp->cpace
                 )) {
+#if defined(PLUGIN_DEBUG)
                 dolog("matched ACL entry on line %d extended by client list", ace->linenum);
+#endif
                 return true;
             } else {
+#if defined(PLUGIN_DEBUG)
                 dolog("matched ACL entry on line %d but not the client list", ace->linenum);
+#endif
                 return false;
             }
         }
         tmp = tmp->next;
     }
     /* Enable all clients by default. */
+#if defined(PLUGIN_DEBUG)
     dolog("matched ACL entry on line %d and the client list is empty", ace->linenum);
+#endif
     return true;
 }
 
@@ -381,6 +511,15 @@ PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **ar
     };
     cmd_clients.next = link->commandhandlers->next;
     link->commandhandlers->next = &cmd_clients;
+
+    /* Intercept "parent" handler as it alters the ACE and this leads to hash mismatch. */
+    for (struct commands *cmd = link->commandhandlers; cmd; cmd = cmd->next) {
+        if (strcmp(cmd->command, "parent") == 0) {
+            h_parent_3proxy = cmd->handler;
+            cmd->handler = h_parent_override;
+            break;
+        }
+    }
 
     /* TODO: instead of adding a completely new auth method,
      * intercept all .authorize functions in existing auth methods
