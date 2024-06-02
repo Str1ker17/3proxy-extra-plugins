@@ -6,6 +6,8 @@
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_NONSTDC_NO_WARNINGS
 
+#undef PLUGIN_DEBUG
+
 #include "../../structures.h"
 #include "ClientProcess.h"
 #include "../../libs/md4.h"
@@ -98,7 +100,8 @@ static DWORD GetLocalProcessBySourceSocket(_In_ SOCKADDR *sa, _Out_ _Maybevalid_
 }
 
 static char *GetProcessNameByPid(PID pid) {
-    char *processName = "[unknown2]"; /* FIXME: will fail on LocalFree() */
+    static const char *unknown2 = "[unknown2]";
+    char *processName = (char *)unknown2; /* FIXME: will fail on LocalFree() */
     HANDLE hProcess;
     if ((hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid)) != INVALID_HANDLE_VALUE) {
         processName = LocalAlloc(0, MAX_PATH);
@@ -117,7 +120,7 @@ static struct {
     pthread_mutex_t mutex;
     ushort next;
     ushort last;
-    ClientProcessSocketInfo cpsi[256]; /* Heuristic. */
+    ClientProcessSocketInfo cpsi[1024]; /* Heuristic. */
 } cpsit;
 
 static_assert(countof(cpsit.cpsi) < (1U << sizeof(ushort) * 8), "Too much");
@@ -151,7 +154,8 @@ static bool InsertClientProcessRow(SOCKET s_accepted, SOCKADDR *addr) {
                 cpsi->s = s_accepted;
                 cpsi->pid = pid;
                 cpsi->pname = GetProcessNameByPid(pid);
-                cpsi->pname_short = strrchr(cpsi->pname, '\\') + 1;
+                cpsi->pname_short = strrchr(cpsi->pname, '\\');
+                if (cpsi->pname_short) cpsi->pname_short += 1;
                 cpsit.next = i + 1;
                 if (i >= cpsit.last) {
                     cpsit.last = cpsit.next;
@@ -206,9 +210,9 @@ static bool ClientProcessRow_LogAndDispose(ClientProcessSocketInfo *cpsi, const 
 static bool ClientProcessRow_CheckClientListMatch(ClientProcessSocketInfo *cpsi, const void *data) {
     const ClientProcessACE *cpace = data;
     if (cpace->isShort) {
-        return stricmp(cpace->path, cpsi->pname_short) == 0;
+        return cpsi->pname_short && stricmp(cpace->path, cpsi->pname_short) == 0;
     } else {
-        return stricmp(cpace->path, cpsi->pname) == 0;
+        return cpsi->pname && stricmp(cpace->path, cpsi->pname) == 0;
     }
 }
 
@@ -332,20 +336,30 @@ static void ACEHash(struct ace *ace, unsigned char *hash) {
 }
 
 static int h_parent_override(int argc, unsigned char **argv) {
-    int rv = h_parent_3proxy(argc, argv);
-    if (rv <= 0) {
-        struct ace *ace = p_link->conf->acl;
+    struct ace *ace = p_link->conf->acl;
+    unsigned char hash[16];
+    struct ClientProcessACEList *cpace = aces;
+    bool need_update_last = false;
+    while (cpace && cpace->next) {
+        cpace = cpace->next;
+    }
+    if (cpace) { /* There is "clients" directive but is it belongs to the current "allow"? */
         while (ace && ace->next) {
             ace = ace->next;
         }
-        struct ClientProcessACEList *tmp = aces;
-        while (tmp && tmp->next) {
-            tmp = tmp->next;
+        ACEHash(ace, hash);
+        if (memcmp(hash, cpace->cpace.hash, sizeof(cpace->cpace.hash)) == 0) {
+            need_update_last = true;
         }
-        if (tmp) {
-            ACEHash(ace, tmp->cpace.hash);
-            dolog("recalculated hash for ACE on line %d", *p_link->linenum);
-        }
+    }
+    int rv = h_parent_3proxy(argc, argv);
+    if (rv <= 0 && need_update_last) {
+        ACEHash(ace, cpace->cpace.hash);
+        dolog(
+            "recalculated hash for ACE on line %d and ClientProcessACE on line %d",
+            *p_link->linenum,
+            cpace->cpace.linenum
+        );
     }
     return rv;
 }
@@ -371,6 +385,7 @@ static int h_clients(int argc, unsigned char **argv) {
         return 1;
     }
     (*tmp)->next = NULL;
+    (*tmp)->cpace.linenum = *p_link->linenum;
     ACEHash(ace, (*tmp)->cpace.hash);
     /* TODO: support vararg */
     (*tmp)->cpace.path = strdup((char *)argv[1]); /* FIXME: memory leak on unload */
