@@ -42,11 +42,8 @@
     <ClCompile Include="..\src\ftppr.c" />
     <ClCompile Include="..\src\libs\md4.c" />
     <ClCompile Include="..\src\libs\md5.c" />
-    <ClCompile Include="..\src\libs\regex.c" />
-    <ClCompile Include="..\src\libs\smbdes.c" />
     <ClCompile Include="..\src\log.c" />
     <ClCompile Include="..\src\mycrypt.c" />
-    <ClCompile Include="..\src\ntlm.c" />
     <ClCompile Include="..\src\plugins.c" />
     <ClCompile Include="..\src\pop3p.c" />
     <ClCompile Include="..\src\proxy.c" />
@@ -59,10 +56,13 @@
     <ClCompile Include="..\src\socks.c" />
     <ClCompile Include="..\src\stringtable.c" />
     <ClCompile Include="..\src\tcppm.c" />
+    <ClCompile Include="..\src\tlspr.c" />
     <ClCompile Include="..\src\udppm.c" />
     <ClCompile Include="..\src\webadmin.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\src\libs\md4.h" />
+    <ClInclude Include="..\src\libs\md5.h" />
     <ClInclude Include="..\src\proxy.h" />
     <ClInclude Include="..\src\structures.h" />
     <ClInclude Include="..\src\version.h" />
