@@ -42,4 +42,7 @@
       <FileType>Document</FileType>
     </CopyFileToFolders>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\plugins\ClientProcessPlugin\ClientProcess.h" />
+  </ItemGroup>
 </Project>
