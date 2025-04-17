@@ -17,6 +17,9 @@
     <Filter Include="Sources\plugins\ClientProcess">
       <UniqueIdentifier>{f917a7f5-b1d7-4418-8e65-3c9ad15f6eec}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Headers\libs">
+      <UniqueIdentifier>{bc1b297d-4619-4a39-906d-d87e69d8c9eb}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\3proxy.c">
@@ -56,9 +59,6 @@
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\src\mycrypt.c">
-      <Filter>Sources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\ntlm.c">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\src\plugins.c">
@@ -103,11 +103,8 @@
     <ClCompile Include="..\src\libs\md5.c">
       <Filter>Sources\libs</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\libs\regex.c">
-      <Filter>Sources\libs</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\libs\smbdes.c">
-      <Filter>Sources\libs</Filter>
+    <ClCompile Include="..\src\tlspr.c">
+      <Filter>Sources</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -119,6 +116,12 @@
     </ClInclude>
     <ClInclude Include="..\src\version.h">
       <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libs\md4.h">
+      <Filter>Headers\libs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libs\md5.h">
+      <Filter>Headers\libs</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
