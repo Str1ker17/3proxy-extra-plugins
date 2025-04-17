@@ -1,0 +1,17 @@
+log
+plugin BoundAuth.dll Initialize
+auth bound
+
+# The password below is combined with source IP address
+users striker:CL:0000
+
+allow * * vk.com,ya.ru,api.ipify.org
+
+# Everything else is blocked
+deny *
+
+proxy -p3129
+
+# For a clean environment and disable reusing ACL is code
+flush
+end
