@@ -31,6 +31,7 @@ enum {
 #include "../../structures.h"
 #include <stdbool.h>
 #include <malloc.h>
+#include <stdlib.h>
 
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
@@ -54,12 +55,13 @@ static_assert(ALPHABET_DEFAULT_SIZE == 32);
 
 #ifdef _WIN32
 #define PATH_DELIMITER '\\'
+#define strcasecmp stricmp
 #else
 #define PATH_DELIMITER '/'
 #endif
 
 #define log_err(fmt, ...)                                                                          \
-    fprintf(stderr, "[x] %s::" __FUNCTION__ ":" STRINGIFY(__LINE__) " | " fmt "\n", (strrchr(__FILE__, PATH_DELIMITER) ? strrchr(__FILE__, PATH_DELIMITER) + 1 : __FILE__), ##__VA_ARGS__)
+    fprintf(stderr, "[x] %s::%s:" STRINGIFY(__LINE__) " | " fmt "\n", (strrchr(__FILE__, PATH_DELIMITER) ? strrchr(__FILE__, PATH_DELIMITER) + 1 : __FILE__), __FUNCTION__, ##__VA_ARGS__)
 #define log_err_config(plugin_link, fmt, ...)                                                       \
     log_err("config line %d: " fmt, *((plugin_link)->linenum), ##__VA_ARGS__)
 
@@ -237,6 +239,7 @@ static uint8_t hex2val(const char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    fprintf(stderr, "invalid hex char: '%c'\n", c);
     abort();
 }
 
@@ -267,7 +270,7 @@ PLUGINAPI int PLUGINCALL RunTest(const struct pluginlink *link, int argc, char *
     }
     char actual[256] = "\0";
     StringizeBytes(source, source_len, alphabet, strlen(alphabet), actual, sizeof(actual));
-    if (stricmp(expected, actual) != 0) {
+    if (strcasecmp(expected, actual) != 0) {
         log_err_config(link, "expected '%s', actual '%s'", expected, actual);
         return RETURN_PROCESSING_ERROR;
     }
@@ -301,7 +304,7 @@ PLUGINAPI int PLUGINCALL ConvertPassword(struct pluginlink *link, int argc, char
     PasswordBoundize(pw_private, &addr, pw_public);
     assert(pw_public[PluginConfig.passwordLen] == '\0');
 
-    log_err_config(link, "public password for { '%s', '%s' } = %s", pw_private, addr_string, pw_public);
+    log_err_config(link, "public password for { '%s', '%s' }:    %s", pw_private, addr_string, pw_public);
     return RETURN_SUCCESS;
 }
 
