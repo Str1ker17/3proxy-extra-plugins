@@ -12,8 +12,7 @@
     <RootNamespace>ClientProcess</RootNamespace>
   </PropertyGroup>
   <PropertyGroup Label="UserMacros">
-    <AdditionalLinkDependencies>
-    </AdditionalLinkDependencies>
+    <AdditionalLinkDependencies>Ws2_32.lib;$(AdditionalLinkDependencies)</AdditionalLinkDependencies>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>

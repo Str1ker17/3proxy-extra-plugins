@@ -1,3 +1,33 @@
+plugin BoundAuth.dll RunTest 63 MM
+plugin BoundAuth.dll RunTest ffff 777Q
+plugin BoundAuth.dll RunTest 5555 KVKQ
+plugin BoundAuth.dll RunTest 5A5a LJNA
+
+# Thx ChatGPT
+plugin BoundAuth.dll RunTest 66 my
+plugin BoundAuth.dll RunTest 666f mzxq
+plugin BoundAuth.dll RunTest 666f6f mzxw6
+plugin BoundAuth.dll RunTest 666f6f62 mzxw6yq
+plugin BoundAuth.dll RunTest 666f6f6261 mzxw6ytb
+plugin BoundAuth.dll RunTest 666f6f626172 mzxw6ytboi
+plugin BoundAuth.dll RunTest 00 aa
+plugin BoundAuth.dll RunTest ff 74
+plugin BoundAuth.dll RunTest ffff 777q
+plugin BoundAuth.dll RunTest dead 32wq
+plugin BoundAuth.dll RunTest beef x3xq
+plugin BoundAuth.dll RunTest cafe zl7a
+plugin BoundAuth.dll RunTest babecafe xk7mv7q
+plugin BoundAuth.dll RunTest 00000000 aaaaaaa
+plugin BoundAuth.dll RunTest ffffffff 777777y
+plugin BoundAuth.dll RunTest 000102030405 aaaqeayeau
+plugin BoundAuth.dll RunTest f0e1d2c3b4a5966d 6dq5fq5uuwlg2
+plugin BoundAuth.dll RunTest 0102030405060708 aebagbafaydqq
+plugin BoundAuth.dll RunTest 48656c6c6f jbswy3dp
+plugin BoundAuth.dll RunTest 4d616e jvqw4
+plugin BoundAuth.dll RunTest f12e4ff19ba46a3700bd7907fce05174fadc624178e7056562cad9739a31ac85 6EXE74M3URVDOAF5PED7ZYCROT5NYYSBPDTQKZLCZLMXHGRRVSCQ
+
+plugin BoundAuth.dll ConvertPassword 0000 127.0.0.1
+
 log
 plugin BoundAuth.dll Initialize
 auth bound
