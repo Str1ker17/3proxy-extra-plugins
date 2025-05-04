@@ -7,6 +7,10 @@
 #error "Please, compile as C code only"
 #endif
 
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ < 199901L)
+#error "Please, compile as C99 code"
+#endif
+
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_NONSTDC_NO_WARNINGS
 
@@ -47,11 +51,15 @@ enum {
 #include "picohash.h"
 #pragma warning(pop)
 
-#define ALPHABET_BASE32 "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+#define ALPHABET_BASE32_LOWER "abcdefghijklmnopqrstuvwxyz234567"
+#define ALPHABET_BASE32_UPPER "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+#define ALPHABET_BASE64 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
 /* Сложно сделать идеальный однозначный алфавит. Фак. */
-#define ALPHABET_DEFAULT "23456789acdefgjkmnpqsrtuvxyz-_=+"
+#define ALPHABET_CONVENIENT "23456789acdefgjkmnpqsrtuvxyz-_=+"
+
+#define ALPHABET_DEFAULT ALPHABET_BASE32_LOWER
 #define ALPHABET_DEFAULT_SIZE (sizeof(ALPHABET_DEFAULT) - 1)
-static_assert(ALPHABET_DEFAULT_SIZE == 32);
 
 #ifdef _WIN32
 #define PATH_DELIMITER '\\'
@@ -65,79 +73,28 @@ static_assert(ALPHABET_DEFAULT_SIZE == 32);
 #define log_err_config(plugin_link, fmt, ...)                                                       \
     log_err("config line %d: " fmt, *((plugin_link)->linenum), ##__VA_ARGS__)
 
+typedef struct {
+    char *data;
+    size_t len;
+} str_t;
+
+#define STR_EXPR(_val) ((str_t){ .data = (char *)(_val), .len = strlen(_val) })
+#define STR_EXPRC(_val) ((str_t){ .data = (_val), .len = sizeof(_val) - 1 })
+
 /* Save the pointer in global area for the easier reuse. */
 static struct pluginlink *p_link;
 
 static struct {
-    char *alphabet;
-    size_t alphabetLen;
-    uint8_t passwordLen;
+    str_t alphabet;
+    str_t secret;
+    uint8_t len;
+    bool initialized;
 } PluginConfig = {
-    .alphabet = ALPHABET_DEFAULT,
-    .alphabetLen = ALPHABET_DEFAULT_SIZE,
-    .passwordLen = 8,
+    .alphabet = { ALPHABET_DEFAULT, ALPHABET_DEFAULT_SIZE },
+    .secret = { NULL, 0 },
+    .len = 8,
+    .initialized = false,
 };
-
-#define HMAC_LEN PICOHASH_SHA256_DIGEST_LENGTH
-#undef CUSTOM_HMAC
-
-#if defined(CUSTOM_HMAC)
-
-#define HMAC_SHA256_PAD_LEN 64
-
-#define sha256_init() picohash_init_sha256(&ctx)
-#define sha256_update(data, len) picohash_update(&ctx, data, len)
-#define sha256_final(out) picohash_final(&ctx, out)
-
-static void hmac_sha256(const uint8_t *key, const size_t key_len,
-                        const uint8_t *msg, const size_t msg_len,
-                        uint8_t *out_digest) {
-
-    picohash_ctx_t ctx;
-    uint8_t key_block[HMAC_SHA256_PAD_LEN] = {0};
-    uint8_t ipad[HMAC_SHA256_PAD_LEN];
-    uint8_t opad[HMAC_SHA256_PAD_LEN];
-    uint8_t inner_hash[PICOHASH_SHA256_DIGEST_LENGTH];
-
-    /* Step 1: Normalize key. */
-    if (key_len > countof(key_block)) {
-        sha256_init();
-        sha256_update(key, key_len);
-        sha256_final(key_block);
-        memset(&key_block[PICOHASH_SHA256_DIGEST_LENGTH], 0x00, HMAC_SHA256_PAD_LEN - PICOHASH_SHA256_DIGEST_LENGTH);
-        _Static_assert(PICOHASH_SHA256_DIGEST_LENGTH <= HMAC_SHA256_PAD_LEN, "wrong lengths");
-    } else {
-        memcpy(key_block, key, key_len);
-    }
-
-    /* Step 2: Prepare pads. */
-    for (uint_fast8_t i = 0; i < countof(ipad); i++) {
-        ipad[i] = key_block[i] ^ 0x36;
-        opad[i] = key_block[i] ^ 0x5c;
-    }
-
-    /* Step 3: Inner hash. */
-    sha256_init();
-    sha256_update(ipad, countof(ipad));
-    sha256_update(msg, msg_len);
-    sha256_final(inner_hash);
-
-    /* Step 4: Outer hash. */
-    sha256_init();
-    sha256_update(opad, 64);
-    sha256_update(inner_hash, 32);
-    sha256_final(out_digest);
-}
-#else
-static void hmac_sha256(const uint8_t *key, const size_t key_len,
-                        const uint8_t *msg, const size_t msg_len,
-                        uint8_t *out_digest) {
-    picohash_ctx_t ctx;
-    picohash_init_hmac(&ctx, picohash_init_sha256, key, key_len);
-    picohash_update(&ctx, msg, msg_len);
-    picohash_final(&ctx, out_digest);
-}
-#endif
 
 static void StringizeBytes(const uint8_t *data, const size_t len, const char *alphabet, const size_t alphabet_len, char *str, const size_t str_len) {
     size_t currByte = 0;
@@ -174,24 +131,45 @@ struct sockaddr_in6
 #endif
 sockaddr_used;
 
+/**
+ * Two-factor HMAC is supported, if `secret' is set in server configs. This is completely optional.
+ *   pw_single = HMAC(pw_private, ip)
+ *   pw_double = HMAC(secret, pw_single)
+ * This scheme can be more strong in some scenarios. Of course, that's a bad idea to leak any `password' or `secret'.
+ * @param [in] pw_private 
+ * @param [in] addr 
+ * @param [out] pw_public Stringized `pw_signle' or `pw_double', depending on config.
+ */
 static void PasswordBoundize(const char *pw_private, sockaddr_used *addr, char *pw_public) {
-    uint8_t hmac[HMAC_LEN];
-    hmac_sha256((const uint8_t *)pw_private, strlen(pw_private), SAADDR(addr), SAADDRLEN(addr), hmac);
-    StringizeBytes(hmac, countof(hmac), PluginConfig.alphabet, PluginConfig.alphabetLen, pw_public, PluginConfig.passwordLen);
+    uint8_t pw_single[PICOHASH_SHA256_DIGEST_LENGTH];
+    uint8_t pw_double[PICOHASH_SHA256_DIGEST_LENGTH];
+    uint8_t *pw_hmac = pw_single;
+
+    picohash_ctx_t ctx;
+    picohash_init_hmac(&ctx, picohash_init_sha256, pw_private, strlen(pw_private));
+    picohash_update(&ctx, SAADDR(addr), SAADDRLEN(addr));
+    picohash_final(&ctx, pw_single);
+
+    if (PluginConfig.secret.data != NULL) {
+        picohash_init_hmac(&ctx, picohash_init_sha256, PluginConfig.secret.data, PluginConfig.secret.len);
+        picohash_update(&ctx, pw_single, sizeof(pw_single));
+        picohash_final(&ctx, pw_double);
+        pw_hmac = pw_double;
+    }
+
+    StringizeBytes(pw_hmac, sizeof(pw_single), PluginConfig.alphabet.data, PluginConfig.alphabet.len, pw_public, PluginConfig.len);
 }
 
 static bool PasswordCheck(const char *pw_public, sockaddr_used *addr, const char *pw_private) {
-    if (strlen(pw_public) != PluginConfig.passwordLen) {
+    if (strlen(pw_public) != PluginConfig.len) {
         return false;
     }
+    char *token = alloca(PluginConfig.len + 1);
 #if defined(PLUGIN_DEBUG)
-    char *token = alloca(PluginConfig.passwordLen + 1);
     token[PluginConfig.passwordLen] = '\0';
-#else
-    char *token = alloca(PluginConfig.passwordLen);
 #endif
     PasswordBoundize(pw_private, addr, token);
-    if (memcmp(token, pw_public, PluginConfig.passwordLen) != 0) {
+    if (memcmp(token, pw_public, PluginConfig.len) != 0) {
         return false;
     }
     return true;
@@ -225,6 +203,7 @@ static int BoundAuth_AuthenticateFunc(struct clientparam *param) {
             case NT:
             case LM:
                 /* Not supported yet. */
+                log_err("only CL password records are supported at the moment, skipping CR/NT/LM");
                 continue;
             default:
                 rc = 999;
@@ -239,7 +218,7 @@ static uint8_t hex2val(const char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    fprintf(stderr, "invalid hex char: '%c'\n", c);
+    log_err("invalid hex char: '%c'\n", c);
     abort();
 }
 
@@ -255,7 +234,7 @@ PLUGINAPI int PLUGINCALL RunTest(const struct pluginlink *link, int argc, char *
     if (argc >= 4) {
         alphabet = argv[3];
     } else {
-        alphabet = ALPHABET_BASE32;
+        alphabet = ALPHABET_BASE32_UPPER;
     }
     size_t hexstr_len = strlen(hexstr);
     if (hexstr_len % 2) {
@@ -299,8 +278,8 @@ PLUGINAPI int PLUGINCALL ConvertPassword(struct pluginlink *link, int argc, char
         return RETURN_INVALID_INPUT;
     }
 
-    char *pw_public = alloca(PluginConfig.passwordLen + 1);
-    pw_public[PluginConfig.passwordLen] = '\0';
+    char *pw_public = alloca(PluginConfig.len + 1);
+    pw_public[PluginConfig.len] = '\0';
     PasswordBoundize(pw_private, &addr, pw_public);
     assert(pw_public[PluginConfig.passwordLen] == '\0');
 
@@ -309,17 +288,87 @@ PLUGINAPI int PLUGINCALL ConvertPassword(struct pluginlink *link, int argc, char
 }
 
 PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **argv) {
-    p_link = link;
+    if (PluginConfig.initialized) {
+        log_err_config(link, "plugin already initialized");
+        return RETURN_INVALID_INPUT;
+    }
 
-    /* TODO: parse passwordLen= and other parameters. */
+    /* DONE: parse passwordLen= and other parameters. */
+    for (int i = 1; i < argc; ++i) {
+        const char *val = strtok(argv[i], "=");
+        if (val && strcmp(argv[i], "len") == 0) {
+            if (sscanf(val, "%hhu", &PluginConfig.len) != 1 || PluginConfig.len == 0) {
+                log_err_config(link, "%s= should be followed by a positive integer", argv[i]);
+                return RETURN_INVALID_INPUT;
+            }
+        } else if (val && strcmp(argv[i], "secret") == 0) {
+            PluginConfig.secret.len = strlen(val);
+            if ((PluginConfig.secret.data = malloc(PluginConfig.secret.len + 1)) == NULL) {
+                return RETURN_INTERNAL_ERROR;
+            }
+            strcpy(PluginConfig.secret.data, val);
+        } else if (val && strcmp(argv[i], "alphabet") == 0) {
+            if (strcmp(val, "base32_lower") == 0) {
+                PluginConfig.alphabet = STR_EXPRC(ALPHABET_BASE32_LOWER);
+            } else if (strcmp(val, "base32_upper") == 0 || strcmp(val, "base32") == 0) {
+                PluginConfig.alphabet = STR_EXPRC(ALPHABET_BASE32_UPPER);
+            } else if (strcmp(val, "base64") == 0) {
+                PluginConfig.alphabet = STR_EXPRC(ALPHABET_BASE64);
+            } else if (strcmp(val, "convenient") == 0) {
+                PluginConfig.alphabet = STR_EXPRC(ALPHABET_CONVENIENT);
+            } else {
+                PluginConfig.alphabet = STR_EXPR(val);
+            }
+        }
+    }
+
+    /* Ensure the alphabet is valid. */
+    static_assert(sizeof(char) == sizeof(uint8_t));
+    /*static_assert((uint8_t)(255 + 1) == 0);*/
+    uint8_t seen[32] = { 0 };
+    for (size_t i = 0; i < PluginConfig.alphabet.len; ++i) {
+        char c = PluginConfig.alphabet.data[i];
+        if (seen[c / 8] & (1 << (c % 8))) {
+            log_err_config(link, "alphabet must be unique; contains duplicate char '%c'", c);
+            return RETURN_INVALID_INPUT;
+        }
+        seen[c / 8] |= (1 << (c % 8));
+    }
 
     static struct auth bound_auth = {
         .desc = "bound",
         .authenticate = BoundAuth_AuthenticateFunc,
     };
+
+    for (struct auth *a = link->authfuncs; a != NULL; a = a->next) {
+        if (strcmp(a->desc, bound_auth.desc) == 0) {
+            log_err_config(link, "auth bound already registered");
+            return RETURN_PROCESSING_ERROR;
+        }
+    }
+
     bound_auth.authorize = link->checkACL;
     bound_auth.next = link->authfuncs->next;
     link->authfuncs->next = &bound_auth;
 
+    p_link = link;
     return RETURN_SUCCESS;
 }
+
+#if !defined(_WIN32)
+__attribute__((destructor))
+#endif
+static void PluginDestructor(void) {
+    if (PluginConfig.secret.data != NULL) {
+        free(PluginConfig.secret.data);
+    }
+}
+
+#if defined(_WIN32)
+BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID reserved) {
+    if (reason == DLL_PROCESS_DETACH) {
+        PluginDestructor();
+    }
+    return TRUE;
+}
+#endif
