@@ -295,7 +295,8 @@ PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **ar
 
     /* DONE: parse passwordLen= and other parameters. */
     for (int i = 1; i < argc; ++i) {
-        const char *val = strtok(argv[i], "=");
+        strtok(argv[i], "=");
+        const char *val = strtok(NULL, "=");
         if (val && strcmp(argv[i], "len") == 0) {
             if (sscanf(val, "%hhu", &PluginConfig.len) != 1 || PluginConfig.len == 0) {
                 log_err_config(link, "%s= should be followed by a positive integer", argv[i]);

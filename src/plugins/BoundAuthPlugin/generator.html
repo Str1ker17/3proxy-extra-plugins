@@ -17,17 +17,30 @@
   <p><b>Result:</b> <code id="output">–</code></p>
 
   <script>
-    async function computeHMAC(password, ip, sharedSecret = "") {
-      const keyData = new TextEncoder().encode(password + sharedSecret);
+    async function hmacSHA256(keyBytes, messageBytes) {
       const key = await crypto.subtle.importKey(
-        "raw", keyData,
+        "raw", keyBytes,
         { name: "HMAC", hash: "SHA-256" },
         false, ["sign"]
       );
+      return new Uint8Array(await crypto.subtle.sign("HMAC", key, messageBytes));
+    }
 
+    async function computeHMAC(password, ip, sharedSecret = "") {
       const ipBin = parseIP(ip);
-      const signature = await crypto.subtle.sign("HMAC", key, ipBin);
-      return base32encode(new Uint8Array(signature)).slice(0, parseInt(document.getElementById("length").value, 10));
+      const pwBytes = new TextEncoder().encode(password);
+
+      const inner = await hmacSHA256(pwBytes, ipBin);  // inner = HMAC(user_secret, ip)
+
+      let final;
+      if (sharedSecret.length > 0) {
+        const sharedBytes = new TextEncoder().encode(sharedSecret);
+        final = await hmacSHA256(sharedBytes, inner);  // final = HMAC(server_secret, inner)
+      } else {
+        final = inner;
+      }
+
+      return base32encode(final).slice(0, parseInt(document.getElementById("length").value, 10));
     }
 
     function parseIP(ip) {
