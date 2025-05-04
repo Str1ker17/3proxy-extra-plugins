@@ -281,7 +281,7 @@ PLUGINAPI int PLUGINCALL ConvertPassword(struct pluginlink *link, int argc, char
     char *pw_public = alloca(PluginConfig.len + 1);
     pw_public[PluginConfig.len] = '\0';
     PasswordBoundize(pw_private, &addr, pw_public);
-    assert(pw_public[PluginConfig.passwordLen] == '\0');
+    assert(pw_public[PluginConfig.len] == '\0');
 
     log_err_config(link, "public password for { '%s', '%s' }:    %s", pw_private, addr_string, pw_public);
     return RETURN_SUCCESS;
