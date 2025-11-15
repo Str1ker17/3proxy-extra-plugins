@@ -324,7 +324,7 @@ PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **ar
     }
 
     /* Ensure the alphabet is valid. */
-    static_assert(sizeof(char) == sizeof(uint8_t));
+    /*static_assert(sizeof(char) == sizeof(uint8_t), "");*/
     /*static_assert((uint8_t)(255 + 1) == 0);*/
     uint8_t seen[32] = { 0 };
     for (size_t i = 0; i < PluginConfig.alphabet.len; ++i) {
