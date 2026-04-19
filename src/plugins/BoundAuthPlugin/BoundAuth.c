@@ -123,14 +123,6 @@ static void StringizeBytes(const uint8_t *data, const size_t len, const char *al
     }
 }
 
-typedef
-#ifdef NOIPV6
-struct sockaddr_in
-#else
-struct sockaddr_in6
-#endif
-sockaddr_used;
-
 /**
  * Two-factor HMAC is supported, if `secret' is set in server configs. This is completely optional.
  *   pw_single = HMAC(pw_private, ip)
@@ -140,7 +132,7 @@ sockaddr_used;
  * @param [in] addr 
  * @param [out] pw_public Stringized `pw_signle' or `pw_double', depending on config.
  */
-static void PasswordBoundize(const char *pw_private, sockaddr_used *addr, char *pw_public) {
+static void PasswordBoundize(const char *pw_private, struct sockaddr_storage *addr, char *pw_public) {
     uint8_t pw_single[PICOHASH_SHA256_DIGEST_LENGTH];
     uint8_t pw_double[PICOHASH_SHA256_DIGEST_LENGTH];
     uint8_t *pw_hmac = pw_single;
@@ -160,7 +152,7 @@ static void PasswordBoundize(const char *pw_private, sockaddr_used *addr, char *
     StringizeBytes(pw_hmac, sizeof(pw_single), PluginConfig.alphabet.data, PluginConfig.alphabet.len, pw_public, PluginConfig.len);
 }
 
-static bool PasswordCheck(const char *pw_public, sockaddr_used *addr, const char *pw_private) {
+static bool PasswordCheck(const char *pw_public, struct sockaddr_storage *addr, const char *pw_private) {
     if (strlen(pw_public) != PluginConfig.len) {
         return false;
     }
@@ -263,7 +255,7 @@ PLUGINAPI int PLUGINCALL ConvertPassword(struct pluginlink *link, int argc, char
     }
     const char *pw_private = argv[1];
     const char *addr_string = argv[2];
-    sockaddr_used addr = {0};
+    struct sockaddr_storage addr = {0};
     uint16_t addr_family;
     if (strchr(addr_string, '.') != NULL && strchr(addr_string, ':') == NULL) {
         addr_family = AF_INET;
