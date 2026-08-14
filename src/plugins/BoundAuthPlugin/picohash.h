@@ -731,6 +731,9 @@ inline void picohash_init_hmac(picohash_ctx_t *ctx, void (*initf)(picohash_ctx_t
 {
     initf(ctx);
 
+    ctx->_hmac.hash_reset = ctx->_reset;
+    ctx->_hmac.hash_final = ctx->_final;
+
     memset(ctx->_hmac.key, 0, ctx->block_length);
     if (key_len > ctx->block_length) {
         /* hash the key if it is too long */
@@ -742,8 +745,6 @@ inline void picohash_init_hmac(picohash_ctx_t *ctx, void (*initf)(picohash_ctx_t
     }
 
     /* replace reset and final function */
-    ctx->_hmac.hash_reset = ctx->_reset;
-    ctx->_hmac.hash_final = ctx->_final;
     ctx->_reset = (void *)_picohash_hmac_reset;
     ctx->_final = (void *)_picohash_hmac_final;
 

@@ -93,12 +93,14 @@ static struct {
     str_t secret;
     uint8_t len;
     bool initialized;
+    bool pwtype_warning_shown;
 } PluginConfig = {
     .alphabet = { ALPHABET_DEFAULT, ALPHABET_DEFAULT_SIZE },
     .alphabet_owned = NULL,
     .secret = { NULL, 0 },
     .len = PASSWORD_LEN_DEFAULT,
     .initialized = false,
+    .pwtype_warning_shown = false,
 };
 
 static void StringizeBytes(const uint8_t *data, const size_t len, const char *alphabet, const size_t alphabet_len, char *str, const size_t str_len) {
@@ -157,6 +159,16 @@ static void PasswordBoundize(const char *pw_private, struct sockaddr_storage *ad
     StringizeBytes(pw_hmac, sizeof(pw_single), PluginConfig.alphabet.data, PluginConfig.alphabet.len, pw_public, PluginConfig.len);
 }
 
+static int CompareConstantTime(const void *a, const void *b, size_t len) {
+    const uint8_t *pa = (const uint8_t *)a;
+    const uint8_t *pb = (const uint8_t *)b;
+    uint8_t diff = 0;
+    for (size_t i = 0; i < len; ++i) {
+        diff |= (uint8_t)(pa[i] ^ pb[i]);
+    }
+    return diff;
+}
+
 static bool PasswordCheck(const char *pw_public, struct sockaddr_storage *addr, const char *pw_private) {
     if (pw_public == NULL || strlen(pw_public) != PluginConfig.len) {
         return false;
@@ -166,7 +178,7 @@ static bool PasswordCheck(const char *pw_public, struct sockaddr_storage *addr, 
     token[PluginConfig.passwordLen] = '\0';
 #endif
     PasswordBoundize(pw_private, addr, token);
-    if (memcmp(token, pw_public, PluginConfig.len) != 0) {
+    if (CompareConstantTime(token, pw_public, PluginConfig.len) != 0) {
         return false;
     }
     return true;
@@ -200,7 +212,10 @@ static int BoundAuth_AuthenticateFunc(struct clientparam *param) {
             case NT:
             case LM:
                 /* Not supported yet. */
-                log_err("only CL password records are supported at the moment, skipping CR/NT/LM");
+                if (!PluginConfig.pwtype_warning_shown) {
+                    PluginConfig.pwtype_warning_shown = true;
+                    log_err("only CL password records are supported at the moment, skipping CR/NT/LM");
+                }
                 continue;
             default:
                 rc = 999;
@@ -271,6 +286,7 @@ PLUGINAPI int PLUGINCALL ConvertPassword(struct pluginlink *link, int argc, char
         log_err_config(link, "address '%s' is not a valid IPv4 neither IPv6 address", addr_string);
         return RETURN_INVALID_INPUT;
     }
+    *SAFAMILY(&addr) = addr_family;
     if (inet_pton(addr_family, addr_string, SAADDR(&addr)) != 1) {
         log_err_config(link, "address '%s' is not a valid IPv4 neither IPv6 address", addr_string);
         return RETURN_INVALID_INPUT;
@@ -292,6 +308,7 @@ PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **ar
     PluginConfig.alphabet_owned = NULL;
     PluginConfig.alphabet = STR_EXPRC(ALPHABET_DEFAULT);
     PluginConfig.len = PASSWORD_LEN_DEFAULT;
+    PluginConfig.pwtype_warning_shown = false;
 
     /* DONE: parse passwordLen= and other parameters. */
     for (int i = 1; i < argc; ++i) {
