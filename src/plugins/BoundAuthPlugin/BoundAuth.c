@@ -61,6 +61,8 @@ enum {
 #define ALPHABET_DEFAULT ALPHABET_BASE32_LOWER
 #define ALPHABET_DEFAULT_SIZE (sizeof(ALPHABET_DEFAULT) - 1)
 
+#define PASSWORD_LEN_DEFAULT 8
+
 #ifdef _WIN32
 #define PATH_DELIMITER '\\'
 #define strcasecmp stricmp
@@ -83,16 +85,19 @@ typedef struct {
 
 /* Save the pointer in global area for the easier reuse. */
 static struct pluginlink *p_link;
+static pthread_mutex_t *pwl_mutex;
 
 static struct {
     str_t alphabet;
+    char *alphabet_owned;
     str_t secret;
     uint8_t len;
     bool initialized;
 } PluginConfig = {
     .alphabet = { ALPHABET_DEFAULT, ALPHABET_DEFAULT_SIZE },
+    .alphabet_owned = NULL,
     .secret = { NULL, 0 },
-    .len = 8,
+    .len = PASSWORD_LEN_DEFAULT,
     .initialized = false,
 };
 
@@ -153,7 +158,7 @@ static void PasswordBoundize(const char *pw_private, struct sockaddr_storage *ad
 }
 
 static bool PasswordCheck(const char *pw_public, struct sockaddr_storage *addr, const char *pw_private) {
-    if (strlen(pw_public) != PluginConfig.len) {
+    if (pw_public == NULL || strlen(pw_public) != PluginConfig.len) {
         return false;
     }
     char *token = alloca(PluginConfig.len + 1);
@@ -172,7 +177,7 @@ static int BoundAuth_AuthenticateFunc(struct clientparam *param) {
     if (param->username == NULL)
         return AUTH_NO_USERNAME_PRESENT;
     int rc = AUTH_NO_USERNAME_FOUND;
-    /* FIXME: add lock over conf->pwl!! */
+    pthread_mutex_lock(pwl_mutex);
     for (struct passwords *pwl = p_link->conf->pwl; pwl; pwl = pwl->next) {
         if (strcmp((char *)pwl->user, (char *)param->username) != 0) {
             /* Wrong user. */
@@ -203,6 +208,7 @@ static int BoundAuth_AuthenticateFunc(struct clientparam *param) {
         }
     }
 result:
+    pthread_mutex_unlock(pwl_mutex);
     return rc;
 }
 
@@ -280,10 +286,12 @@ PLUGINAPI int PLUGINCALL ConvertPassword(struct pluginlink *link, int argc, char
 }
 
 PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **argv) {
-    if (PluginConfig.initialized) {
-        log_err_config(link, "plugin already initialized");
-        return RETURN_INVALID_INPUT;
-    }
+    free(PluginConfig.secret.data);
+    PluginConfig.secret = (str_t){ NULL, 0 };
+    free(PluginConfig.alphabet_owned);
+    PluginConfig.alphabet_owned = NULL;
+    PluginConfig.alphabet = STR_EXPRC(ALPHABET_DEFAULT);
+    PluginConfig.len = PASSWORD_LEN_DEFAULT;
 
     /* DONE: parse passwordLen= and other parameters. */
     for (int i = 1; i < argc; ++i) {
@@ -310,7 +318,10 @@ PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **ar
             } else if (strcmp(val, "convenient") == 0) {
                 PluginConfig.alphabet = STR_EXPRC(ALPHABET_CONVENIENT);
             } else {
-                PluginConfig.alphabet = STR_EXPR(val);
+                if ((PluginConfig.alphabet_owned = strdup(val)) == NULL) {
+                    return RETURN_INTERNAL_ERROR;
+                }
+                PluginConfig.alphabet = STR_EXPR(PluginConfig.alphabet_owned);
             }
         }
     }
@@ -320,7 +331,7 @@ PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **ar
     /*static_assert((uint8_t)(255 + 1) == 0);*/
     uint8_t seen[32] = { 0 };
     for (size_t i = 0; i < PluginConfig.alphabet.len; ++i) {
-        char c = PluginConfig.alphabet.data[i];
+        unsigned char c = (unsigned char)PluginConfig.alphabet.data[i];
         if (seen[c / 8] & (1 << (c % 8))) {
             log_err_config(link, "alphabet must be unique; contains duplicate char '%c'", c);
             return RETURN_INVALID_INPUT;
@@ -328,21 +339,29 @@ PLUGINAPI int PLUGINCALL Initialize(struct pluginlink *link, int argc, char **ar
         seen[c / 8] |= (1 << (c % 8));
     }
 
+    if ((pwl_mutex = link->findbyname("pwl_mutex")) == NULL) {
+        log_err_config(link, "pwl_mutex is not exported by 3proxy core");
+        return RETURN_PROCESSING_ERROR;
+    }
+
     static struct auth bound_auth = {
         .desc = "bound",
         .authenticate = BoundAuth_AuthenticateFunc,
     };
 
-    for (struct auth *a = link->authfuncs; a != NULL; a = a->next) {
-        if (strcmp(a->desc, bound_auth.desc) == 0) {
-            log_err_config(link, "auth bound already registered");
-            return RETURN_PROCESSING_ERROR;
+    if (!PluginConfig.initialized) {
+        for (struct auth *a = link->authfuncs; a != NULL; a = a->next) {
+            if (strcmp(a->desc, bound_auth.desc) == 0) {
+                log_err_config(link, "auth bound is already registered by another module");
+                return RETURN_PROCESSING_ERROR;
+            }
         }
-    }
 
-    bound_auth.authorize = link->checkACL;
-    bound_auth.next = link->authfuncs->next;
-    link->authfuncs->next = &bound_auth;
+        bound_auth.authorize = link->checkACL;
+        bound_auth.next = link->authfuncs->next;
+        link->authfuncs->next = &bound_auth;
+        PluginConfig.initialized = true;
+    }
 
     p_link = link;
     return RETURN_SUCCESS;
@@ -354,6 +373,9 @@ __attribute__((destructor))
 static void PluginDestructor(void) {
     if (PluginConfig.secret.data != NULL) {
         free(PluginConfig.secret.data);
+    }
+    if (PluginConfig.alphabet_owned != NULL) {
+        free(PluginConfig.alphabet_owned);
     }
 }
 
