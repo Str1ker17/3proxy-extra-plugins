@@ -55,10 +55,13 @@
     <ClCompile Include="..\src\ftppr.c">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\hash.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\log.c">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\mycrypt.c">
+    <ClCompile Include="..\src\3proxy_crypt.c">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\src\plugins.c">
@@ -73,6 +76,9 @@
     <ClCompile Include="..\src\proxymain.c">
       <Filter>Sources</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\resolve.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\smtpp.c">
       <Filter>Sources</Filter>
     </ClCompile>
@@ -83,6 +89,9 @@
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\src\socks.c">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\sql.c">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\src\stringtable.c">
@@ -96,6 +105,9 @@
     </ClCompile>
     <ClCompile Include="..\src\webadmin.c">
       <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libs\blake2b-ref.c">
+      <Filter>Sources\libs</Filter>
     </ClCompile>
     <ClCompile Include="..\src\libs\md4.c">
       <Filter>Sources\libs</Filter>
@@ -116,6 +128,12 @@
     </ClInclude>
     <ClInclude Include="..\src\version.h">
       <Filter>Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libs\blake2-impl.h">
+      <Filter>Headers\libs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libs\blake2.h">
+      <Filter>Headers\libs</Filter>
     </ClInclude>
     <ClInclude Include="..\src\libs\md4.h">
       <Filter>Headers\libs</Filter>

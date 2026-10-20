@@ -30,6 +30,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\src\3proxy.c" />
+    <ClCompile Include="..\src\3proxy_crypt.c" />
     <ClCompile Include="..\src\auth.c" />
     <ClCompile Include="..\src\authradius.c" />
     <ClCompile Include="..\src\auto.c" />
@@ -40,20 +41,23 @@
     <ClCompile Include="..\src\dnspr.c" />
     <ClCompile Include="..\src\ftp.c" />
     <ClCompile Include="..\src\ftppr.c" />
+    <ClCompile Include="..\src\hash.c" />
+    <ClCompile Include="..\src\libs\blake2b-ref.c" />
     <ClCompile Include="..\src\libs\md4.c" />
     <ClCompile Include="..\src\libs\md5.c" />
     <ClCompile Include="..\src\log.c" />
-    <ClCompile Include="..\src\mycrypt.c" />
     <ClCompile Include="..\src\plugins.c" />
     <ClCompile Include="..\src\pop3p.c" />
     <ClCompile Include="..\src\proxy.c" />
     <ClCompile Include="..\src\proxymain.c">
       <PreprocessorDefinitions>MODULEMAINFUNC=mainfunc;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
+    <ClCompile Include="..\src\resolve.c" />
     <ClCompile Include="..\src\smtpp.c" />
     <ClCompile Include="..\src\sockgetchar.c" />
     <ClCompile Include="..\src\sockmap.c" />
     <ClCompile Include="..\src\socks.c" />
+    <ClCompile Include="..\src\sql.c" />
     <ClCompile Include="..\src\stringtable.c" />
     <ClCompile Include="..\src\tcppm.c" />
     <ClCompile Include="..\src\tlspr.c" />
@@ -61,6 +65,8 @@
     <ClCompile Include="..\src\webadmin.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\src\libs\blake2-impl.h" />
+    <ClInclude Include="..\src\libs\blake2.h" />
     <ClInclude Include="..\src\libs\md4.h" />
     <ClInclude Include="..\src\libs\md5.h" />
     <ClInclude Include="..\src\proxy.h" />
